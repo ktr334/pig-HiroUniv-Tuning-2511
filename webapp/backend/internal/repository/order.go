@@ -83,11 +83,19 @@ func (r *OrderRepository) ListOrders(ctx context.Context, userID int, req model.
 	}
 
 	// 総件数を取得（ページング用）
-	countQuery := "SELECT COUNT(*) " + baseQuery + " " + whereClause
-	countArgs := append([]interface{}{}, args...)
+	// 検索がない場合はordersのみでカウントし、不要なJOINを避けて高速化する
 	var total int
-	if err := r.db.GetContext(ctx, &total, countQuery, countArgs...); err != nil {
-		return nil, 0, err
+	if req.Search == "" {
+		countQuery := "SELECT COUNT(*) FROM orders WHERE user_id = ?"
+		if err := r.db.GetContext(ctx, &total, countQuery, userID); err != nil {
+			return nil, 0, err
+		}
+	} else {
+		countQuery := "SELECT COUNT(*) " + baseQuery + " " + whereClause
+		countArgs := append([]interface{}{}, args...)
+		if err := r.db.GetContext(ctx, &total, countQuery, countArgs...); err != nil {
+			return nil, 0, err
+		}
 	}
 
 	// ソート条件の組み立て
