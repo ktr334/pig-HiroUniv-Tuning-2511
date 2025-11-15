@@ -3,7 +3,9 @@ package repository
 import (
 	"backend/internal/model"
 	"context"
-	"database/sql"
+
+	// N+1問題を解消する過程でsql.NullTimeなどの型を使わなくなったため
+	//"database/sql"
 	"fmt"
 	"strings"
 
