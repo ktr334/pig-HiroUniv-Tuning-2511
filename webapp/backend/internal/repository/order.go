@@ -82,14 +82,6 @@ func (r *OrderRepository) ListOrders(ctx context.Context, userID int, req model.
 		}
 	}
 
-	// --- 総件数を取得するクエリを削除 ---
-	// countQuery := "SELECT COUNT(*) " + baseQuery + " " + whereClause
-	// var total int
-	// if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
-	// 	return nil, 0, err
-	// }
-	// --- ここまで削除 ---
-
 	// ソート条件の組み立て
 	sortField := "o.order_id"
 	switch req.SortField {
