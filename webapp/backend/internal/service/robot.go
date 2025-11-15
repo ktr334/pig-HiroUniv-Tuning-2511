@@ -92,9 +92,11 @@ func selectOrdersForDelivery(ctx context.Context, orders []model.Order, robotID 
 	w := robotCapacity
 	for i := n; i > 0; i-- {
 		// i番目の注文が選ばれているか判定
-		if dp[i][w] != dp[i-1][w] {
-			bestSet = append(bestSet, orders[i-1])
-			w -= orders[i-1].Weight
+		// 条件: 重さが足りる かつ この注文を選んだ結果としてこの値になった
+		order := orders[i-1]
+		if w >= order.Weight && dp[i][w] == dp[i-1][w-order.Weight]+order.Value {
+			bestSet = append(bestSet, order)
+			w -= order.Weight
 		}
 	}
 
