@@ -59,45 +59,46 @@ func (s *RobotService) UpdateOrderStatus(ctx context.Context, orderID int64, new
 
 func selectOrdersForDelivery(ctx context.Context, orders []model.Order, robotID string, robotCapacity int) (model.DeliveryPlan, error) {
 	n := len(orders)
-	bestValue := 0
+
+	// DP配列の初期化
+	// dp[i][w] = 最初のi個の注文で、重さwまでの最大価値
+	dp := make([][]int, n+1)
+	for i := 0; i <= n; i++ {
+		dp[i] = make([]int, robotCapacity+1)
+	}
+
+	// DPテーブルを埋める
+	for i := 1; i <= n; i++ {
+		order := orders[i-1]
+		for w := 0; w <= robotCapacity; w++ {
+			// i番目の注文を選ばない場合
+			dp[i][w] = dp[i-1][w]
+
+			// i番目の注文を選ぶ場合（重さが足りれば）
+			if order.Weight <= w {
+				valueWithItem := dp[i-1][w-order.Weight] + order.Value
+				if valueWithItem > dp[i][w] {
+					dp[i][w] = valueWithItem
+				}
+			}
+		}
+	}
+
+	// 最大価値
+	bestValue := dp[n][robotCapacity]
+
+	// 選ばれた注文を復元
 	var bestSet []model.Order
-	steps := 0
-	checkEvery := 16384
-
-	var dfs func(i, curWeight, curValue int, curSet []model.Order) bool
-	dfs = func(i, curWeight, curValue int, curSet []model.Order) bool {
-		if curWeight > robotCapacity {
-			return false
+	w := robotCapacity
+	for i := n; i > 0; i-- {
+		// i番目の注文が選ばれているか判定
+		if dp[i][w] != dp[i-1][w] {
+			bestSet = append(bestSet, orders[i-1])
+			w -= orders[i-1].Weight
 		}
-		steps++
-		if checkEvery > 0 && steps%checkEvery == 0 {
-			select {
-			case <-ctx.Done():
-				return true
-			default:
-			}
-		}
-		if i == n {
-			if curValue > bestValue {
-				bestValue = curValue
-				bestSet = append([]model.Order{}, curSet...)
-			}
-			return false
-		}
-
-		if dfs(i+1, curWeight, curValue, curSet) {
-			return true
-		}
-
-		order := orders[i]
-		return dfs(i+1, curWeight+order.Weight, curValue+order.Value, append(curSet, order))
 	}
 
-	canceled := dfs(0, 0, 0, nil)
-	if canceled {
-		return model.DeliveryPlan{}, ctx.Err()
-	}
-
+	// 合計重量を計算
 	var totalWeight int
 	for _, o := range bestSet {
 		totalWeight += o.Weight
