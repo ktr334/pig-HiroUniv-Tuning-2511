@@ -106,7 +106,8 @@ func (r *OrderRepository) ListOrders(ctx context.Context, userID int, req model.
 	if strings.ToUpper(req.SortOrder) == "ASC" {
 		sortOrder = "ASC"
 	}
-	orderByClause := fmt.Sprintf("ORDER BY %s %s, o.order_id ASC", sortField, sortOrder)
+	// ソート順混在によるファイルソートを避けるため、タイブレークのorder_idも同じ向きで並べる
+	orderByClause := fmt.Sprintf("ORDER BY %s %s, o.order_id %s", sortField, sortOrder, sortOrder)
 
 	// ページネーション
 	limitClause := "LIMIT ?"
