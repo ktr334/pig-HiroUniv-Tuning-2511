@@ -3,6 +3,8 @@ package repository
 import (
     "backend/internal/model"
     "context"
+    "log"                 // ２つ追加
+    "time"
 )
 
 type ProductRepository struct {
@@ -15,6 +17,13 @@ func NewProductRepository(db DBTX) *ProductRepository {
 
 // SQL でページングして高速化したバージョン
 func (r *ProductRepository) ListProducts(ctx context.Context, userID int, req model.ListRequest) ([]model.Product, int, error) {
+
+    start := time.Now()                // ★追加（計測開始）
+    defer func() {                     // ★追加（処理終了後ログ出力）
+        log.Printf("[ListProducts] search=%s pageSize=%d offset=%d elapsed=%s",
+            req.Search, req.PageSize, req.Offset, time.Since(start))
+    }()
+    
     // ---- 1. 件数取得（COUNT） ----
     countQuery := `
         SELECT COUNT(*)
