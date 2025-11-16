@@ -82,13 +82,21 @@ func (r *OrderRepository) ListOrders(ctx context.Context, userID int, req model.
 		}
 	}
 
-	// --- 総件数を取得するクエリを削除 ---
-	// countQuery := "SELECT COUNT(*) " + baseQuery + " " + whereClause
-	// var total int
-	// if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
-	// 	return nil, 0, err
-	// }
-	// --- ここまで削除 ---
+	// 総件数を取得（ページング用）
+	// 検索がない場合はordersのみでカウントし、不要なJOINを避けて高速化する
+	var total int
+	if req.Search == "" {
+		countQuery := "SELECT COUNT(*) FROM orders WHERE user_id = ?"
+		if err := r.db.GetContext(ctx, &total, countQuery, userID); err != nil {
+			return nil, 0, err
+		}
+	} else {
+		countQuery := "SELECT COUNT(*) " + baseQuery + " " + whereClause
+		countArgs := append([]interface{}{}, args...)
+		if err := r.db.GetContext(ctx, &total, countQuery, countArgs...); err != nil {
+			return nil, 0, err
+		}
+	}
 
 	// ソート条件の組み立て
 	sortField := "o.order_id"
@@ -113,7 +121,7 @@ func (r *OrderRepository) ListOrders(ctx context.Context, userID int, req model.
 	offsetClause := "OFFSET ?"
 	args = append(args, req.PageSize, req.Offset)
 
-	// データを取得するクエリ (ウィンドウ関数 COUNT(*) OVER() を追加)
+	// データを取得するクエリ
 	dataQuery := `
 		SELECT
 			o.order_id,
@@ -121,36 +129,12 @@ func (r *OrderRepository) ListOrders(ctx context.Context, userID int, req model.
 			p.name as product_name,
 			o.shipped_status,
 			o.created_at,
-			o.arrived_at,
-			COUNT(*) OVER() as total_count 
+			o.arrived_at
 		` + baseQuery + " " + whereClause + " " + orderByClause + " " + limitClause + " " + offsetClause
 
-	// 一時的にクエリ結果を受け取るための内部構造体
-	// model.Order を埋め込み、total_count を追加
-	type orderWithTotal struct {
-		model.Order
-		TotalCount int `db:"total_count"`
-	}
-
-	var results []orderWithTotal
-	// SelectContext の宛先を &results に変更
-	if err := r.db.SelectContext(ctx, &results, dataQuery, args...); err != nil {
-		return nil, 0, err
-	}
-
-	// 最終的に返すスライスと総件数を準備
 	var orders []model.Order
-	var total int = 0
-
-	// 取得した結果が1件以上あれば、総件数をセット
-	if len(results) > 0 {
-		// total_count は全行で同じ値なので、最初の行から取得
-		total = results[0].TotalCount
-	}
-
-	// 取得した results から、model.Order の部分だけを orders スライスに詰め替える
-	for _, res := range results {
-		orders = append(orders, res.Order)
+	if err := r.db.SelectContext(ctx, &orders, dataQuery, args...); err != nil {
+		return nil, 0, err
 	}
 
 	return orders, total, nil
