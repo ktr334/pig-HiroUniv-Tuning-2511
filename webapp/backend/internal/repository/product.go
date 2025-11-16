@@ -1,10 +1,10 @@
 package repository
 
 import (
-    "backend/internal/model"
-    "context"
-    "log"                 // ２つ追加
-    "time"
+	"backend/internal/model"
+	"context"
+	"log"
+	"time"
 )
 
 type ProductRepository struct {
@@ -25,22 +25,23 @@ func (r *ProductRepository) ListProducts(ctx context.Context, userID int, req mo
     }()
     
     // ---- 1. 件数取得（COUNT） ----
-    countQuery := `
-        SELECT COUNT(*)
-        FROM products
-    `
-    countArgs := []interface{}{}
+	countQuery := `
+		SELECT COUNT(*)
+		FROM products
+	`
+	countArgs := []interface{}{}
+	searchClause := ""
 
-    if req.Search != "" {
-        countQuery += " WHERE (name LIKE ? OR description LIKE ?)"
-        searchPattern := "%" + req.Search + "%"
-        countArgs = append(countArgs, searchPattern, searchPattern)
-    }
+	if req.Search != "" {
+		searchClause = " WHERE (name LIKE ? OR description LIKE ?)"
+		searchPattern := "%" + req.Search + "%"
+		countArgs = append(countArgs, searchPattern, searchPattern)
+	}
 
-    var total int
-    if err := r.db.GetContext(ctx, &total, countQuery, countArgs...); err != nil {
-        return nil, 0, err
-    }
+	var total int
+	if err := r.db.GetContext(ctx, &total, countQuery+searchClause, countArgs...); err != nil {
+		return nil, 0, err
+	}
 
     // ---- 2. ページング付きデータ取得 ----
     baseQuery := `
@@ -49,11 +50,11 @@ func (r *ProductRepository) ListProducts(ctx context.Context, userID int, req mo
     `
     args := []interface{}{}
 
-    if req.Search != "" {
-        baseQuery += " WHERE (name LIKE ? OR description LIKE ?)"
-        searchPattern := "%" + req.Search + "%"
-        args = append(args, searchPattern, searchPattern)
-    }
+	if req.Search != "" {
+		baseQuery += " WHERE (name LIKE ? OR description LIKE ?)"
+		searchPattern := "%" + req.Search + "%"
+		args = append(args, searchPattern, searchPattern)
+	}
 
     baseQuery += " ORDER BY " + req.SortField + " " + req.SortOrder + " , product_id ASC"
     baseQuery += " LIMIT ? OFFSET ?"
