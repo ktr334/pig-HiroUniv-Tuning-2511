@@ -20,6 +20,27 @@ func NewOrderRepository(db DBTX) *OrderRepository {
 	return &OrderRepository{db: db}
 }
 
+// 複数の注文を一度にデータベースへ挿入する
+func (r *OrderRepository) BulkCreate(ctx context.Context, orders []*model.Order) error {
+	if len(orders) == 0 {
+		return nil
+	}
+
+	// VALUES (?, ?, 'shipping', NOW()), (?, ?, 'shipping', NOW()), ... の部分を動的に生成
+	valueStrings := make([]string, 0, len(orders))
+	valueArgs := make([]interface{}, 0, len(orders)*2)
+	for _, o := range orders {
+		valueStrings = append(valueStrings, "(?, ?, 'shipping', NOW())")
+		valueArgs = append(valueArgs, o.UserID, o.ProductID)
+	}
+
+	query := fmt.Sprintf("INSERT INTO orders (user_id, product_id, shipped_status, created_at) VALUES %s",
+		strings.Join(valueStrings, ","))
+
+	_, err := r.db.ExecContext(ctx, query, valueArgs...)
+	return err
+}
+
 // 注文を作成し、生成された注文IDを返す
 func (r *OrderRepository) Create(ctx context.Context, order *model.Order) (string, error) {
 	query := `INSERT INTO orders (user_id, product_id, shipped_status, created_at) VALUES (?, ?, 'shipping', NOW())`
